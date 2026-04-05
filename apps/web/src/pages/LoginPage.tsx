@@ -49,37 +49,30 @@ export default function LoginPage() {
         {/* Logo */}
         <motion.div
           className="text-center"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
         >
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl glass cyber-border animate-pulse-cyber">
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-              <path d="M4 14h20M14 4v20M6 6l16 16M22 6L6 22" stroke="#00d4ff" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            <span className="text-gradient">Task</span>
-            <span className="text-white/80">Flow</span>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            <span className="text-accent">Task</span>
+            <span className="text-txt-primary">Flow</span>
           </h1>
-          <p className="mt-1 text-sm text-white/30 font-mono tracking-widest uppercase">
-            productivity ecosystem
+          <p className="mt-1.5 text-sm text-txt-muted">
+            Your workspace, simplified.
           </p>
         </motion.div>
 
         {/* Card */}
         <motion.div
-          className="glass cyber-border rounded-2xl p-6 space-y-4"
-          initial={{ opacity: 0, y: 20 }}
+          className="rounded-xl bg-surface p-6 space-y-4 border border-white/[0.06]"
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.4, delay: 0.1 }}
         >
           {/* Google */}
-          <motion.button
+          <button
             onClick={handleGoogle}
-            whileHover={{ scale: 1.01, backgroundColor: 'rgba(255,255,255,0.06)' }}
-            whileTap={{ scale: 0.98 }}
-            className="flex w-full items-center justify-center gap-3 rounded-xl glass border border-white/10 py-2.5 text-sm font-medium text-white/70 transition-colors"
+            className="flex w-full items-center justify-center gap-3 rounded-lg bg-surface-hover border border-white/[0.06] py-2.5 text-sm font-medium text-txt-secondary hover:text-txt-primary hover:bg-surface-elevated transition-colors"
           >
             <svg width="18" height="18" viewBox="0 0 18 18">
               <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/>
@@ -88,12 +81,12 @@ export default function LoginPage() {
               <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58Z" fill="#EA4335"/>
             </svg>
             Continue with Google
-          </motion.button>
+          </button>
 
           <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-white/5" />
-            <span className="text-xs text-white/20 font-mono">OR</span>
-            <div className="h-px flex-1 bg-white/5" />
+            <div className="h-px flex-1 bg-white/[0.06]" />
+            <span className="text-xs text-txt-muted">or</span>
+            <div className="h-px flex-1 bg-white/[0.06]" />
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3">
@@ -105,7 +98,7 @@ export default function LoginPage() {
                 placeholder="Name"
                 value={name}
                 onChange={e => setName(e.target.value)}
-                className="w-full rounded-xl bg-white/[0.04] border border-white/[0.06] px-4 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-cyber-400/40 focus:ring-1 focus:ring-cyber-400/20 transition-all"
+                className="w-full rounded-lg bg-base border border-white/[0.06] px-3.5 py-2.5 text-sm text-txt-primary placeholder-txt-muted outline-none focus:border-accent/40 transition-colors"
                 required
               />
             )}
@@ -114,7 +107,7 @@ export default function LoginPage() {
               placeholder="Email"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              className="w-full rounded-xl bg-white/[0.04] border border-white/[0.06] px-4 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-cyber-400/40 focus:ring-1 focus:ring-cyber-400/20 transition-all"
+              className="w-full rounded-lg bg-base border border-white/[0.06] px-3.5 py-2.5 text-sm text-txt-primary placeholder-txt-muted outline-none focus:border-accent/40 transition-colors"
               required
             />
             <input
@@ -122,53 +115,42 @@ export default function LoginPage() {
               placeholder="Password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              className="w-full rounded-xl bg-white/[0.04] border border-white/[0.06] px-4 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-cyber-400/40 focus:ring-1 focus:ring-cyber-400/20 transition-all"
+              className="w-full rounded-lg bg-base border border-white/[0.06] px-3.5 py-2.5 text-sm text-txt-primary placeholder-txt-muted outline-none focus:border-accent/40 transition-colors"
               required
             />
             {error && (
               <motion.p
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-xs text-red-400/80"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-xs text-red-400"
               >
                 {error}
               </motion.p>
             )}
-            <motion.button
+            <button
               type="submit"
               disabled={loading}
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.98 }}
-              className="relative w-full overflow-hidden rounded-xl bg-cyber-400 py-2.5 text-sm font-semibold text-dark-400 transition-all hover:bg-cyber-300 disabled:opacity-40"
+              className="w-full rounded-lg bg-accent py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-40 transition-colors"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
-                  <span className="h-3.5 w-3.5 rounded-full border-2 border-dark-400/30 border-t-dark-400 animate-spin" />
+                  <span className="h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
                   Loading...
                 </span>
               ) : mode === 'login' ? 'Sign In' : 'Create Account'}
-            </motion.button>
+            </button>
           </form>
 
-          <p className="text-center text-xs text-white/25">
+          <p className="text-center text-xs text-txt-muted">
             {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
             <button
               onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-              className="text-cyber-400/80 hover:text-cyber-400 transition-colors"
+              className="text-accent hover:text-accent-hover transition-colors"
             >
               {mode === 'login' ? 'Sign Up' : 'Sign In'}
             </button>
           </p>
         </motion.div>
-
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="text-center font-mono text-[10px] text-white/10 tracking-widest uppercase"
-        >
-          v1.0.0 — taskflow.app
-        </motion.p>
       </div>
     </motion.div>
   );

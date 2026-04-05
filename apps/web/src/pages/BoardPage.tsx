@@ -15,13 +15,21 @@ interface BoardData extends Board {
 export default function BoardPage() {
   const { id } = useParams<{ id: string }>();
   const [board, setBoard] = useState<BoardData | null>(null);
+  const [error, setError] = useState('');
   const [activeTask, setActiveTask] = useState<Task | null>(null);
 
   useEffect(() => {
     if (!id) return;
     fetch(`/api/boards/${id}`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(res => setBoard(res.data));
+      .then(r => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then(res => {
+        if (!res.data) throw new Error('Board not found');
+        setBoard(res.data);
+      })
+      .catch(e => setError(e.message || 'Failed to load board'));
   }, [id]);
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -32,14 +40,12 @@ export default function BoardPage() {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || !board) return;
+
     const targetColumnId = over.id as string;
     const taskId = active.id as string;
-    await fetch(`/api/tasks/${taskId}`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ columnId: targetColumnId }),
-    });
+
+    // Optimistic update
+    const prevBoard = board;
     setBoard(prev => {
       if (!prev) return prev;
       const task = prev.columns.flatMap(c => c.tasks).find(t => t.id === taskId);
@@ -55,6 +61,15 @@ export default function BoardPage() {
       };
     });
     setActiveTask(null);
+
+    // Persist to API, rollback on failure
+    const res = await fetch(`/api/tasks/${taskId}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ columnId: targetColumnId }),
+    });
+    if (!res.ok) setBoard(prevBoard);
   };
 
   const addTask = async (columnId: string, title: string) => {
@@ -64,7 +79,9 @@ export default function BoardPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, columnId, boardId: id }),
     });
+    if (!res.ok) return;
     const data = await res.json();
+    if (!data.data) return;
     setBoard(prev => {
       if (!prev) return prev;
       return {
@@ -75,6 +92,15 @@ export default function BoardPage() {
       };
     });
   };
+
+  if (error) return (
+    <div className="flex h-screen flex-col items-center justify-center gap-4">
+      <p className="text-sm text-red-400/70">Failed to load board: {error}</p>
+      <Link to="/" className="text-xs text-cyber-400/70 hover:text-cyber-400 transition-colors font-mono">
+        ← back to boards
+      </Link>
+    </div>
+  );
 
   if (!board) return (
     <div className="flex h-screen items-center justify-center">

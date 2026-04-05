@@ -1,10 +1,12 @@
-import { pgTable, text, timestamp, integer, uuid } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, integer, uuid, boolean, primaryKey } from 'drizzle-orm/pg-core';
+
+// ── Auth tables (managed by better-auth) ─────────────────────────
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
-  emailVerified: timestamp('email_verified'),
+  emailVerified: boolean('email_verified').default(false),
   image: text('image'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -46,6 +48,8 @@ export const verifications = pgTable('verifications', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+// ── Legacy boards (kept for migration, deprecated) ───────────────
+
 export const boards = pgTable('boards', {
   id: uuid('id').defaultRandom().primaryKey(),
   title: text('title').notNull(),
@@ -54,13 +58,41 @@ export const boards = pgTable('boards', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+// ── Projects ─────────────────────────────────────────────────────
+
+export const projects = pgTable('projects', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  title: text('title').notNull(),
+  color: text('color').notNull().default('#3B82F6'),
+  icon: text('icon'),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// ── Columns (user-scoped, not board-scoped) ──────────────────────
+
 export const columns = pgTable('columns', {
   id: uuid('id').defaultRandom().primaryKey(),
   title: text('title').notNull(),
-  boardId: uuid('board_id').notNull().references(() => boards.id, { onDelete: 'cascade' }),
+  boardId: uuid('board_id').references(() => boards.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
   position: integer('position').notNull().default(0),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+// ── Labels ───────────────────────────────────────────────────────
+
+export const labels = pgTable('labels', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  color: text('color').notNull().default('#6366F1'),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// ── Tasks ────────────────────────────────────────────────────────
 
 export const tasks = pgTable('tasks', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -68,11 +100,33 @@ export const tasks = pgTable('tasks', {
   description: text('description'),
   status: text('status').notNull().default('todo'),
   priority: text('priority').notNull().default('medium'),
+  effort: integer('effort'),
   columnId: uuid('column_id').references(() => columns.id, { onDelete: 'set null' }),
   boardId: uuid('board_id').references(() => boards.id, { onDelete: 'cascade' }),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   position: integer('position').notNull().default(0),
   dueDate: timestamp('due_date'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// ── Task ↔ Label junction ────────────────────────────────────────
+
+export const taskLabels = pgTable('task_labels', {
+  taskId: uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  labelId: uuid('label_id').notNull().references(() => labels.id, { onDelete: 'cascade' }),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.taskId, t.labelId] }),
+}));
+
+// ── Subtasks ─────────────────────────────────────────────────────
+
+export const subtasks = pgTable('subtasks', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  title: text('title').notNull(),
+  completed: boolean('completed').default(false),
+  taskId: uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });

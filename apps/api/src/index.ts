@@ -6,6 +6,10 @@ import { logger } from 'hono/logger';
 import { auth } from './lib/auth';
 import taskRoutes from './routes/tasks';
 import boardRoutes from './routes/boards';
+import projectRoutes from './routes/projects';
+import labelRoutes from './routes/labels';
+import subtaskRoutes from './routes/subtasks';
+import workspaceRoutes from './routes/workspace';
 
 const app = new Hono();
 app.use('*', logger());
@@ -16,6 +20,10 @@ app.use('*', cors({
 app.on(['GET', 'POST'], '/api/auth/**', (c) => auth.handler(c.req.raw));
 app.route('/api/tasks', taskRoutes);
 app.route('/api/boards', boardRoutes);
+app.route('/api/projects', projectRoutes);
+app.route('/api/labels', labelRoutes);
+app.route('/api', subtaskRoutes);
+app.route('/api/workspace', workspaceRoutes);
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
 serve({ fetch: app.fetch, port: parseInt(process.env.PORT || '3001') }, () => {

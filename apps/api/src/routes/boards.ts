@@ -5,9 +5,13 @@ import { db } from '../db';
 import { boards, columns, tasks } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth';
+import type { AppEnv } from '../types';
 
-const router = new Hono();
+const router = new Hono<AppEnv>();
 router.use('*', requireAuth);
+
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUUID = (s: string) => uuidRegex.test(s);
 
 router.get('/', async (c) => {
   const user = c.get('user');
@@ -30,6 +34,7 @@ router.post('/', zValidator('json', z.object({ title: z.string().min(1) })), asy
 router.get('/:id', async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
+  if (!isUUID(id)) return c.json({ error: 'Invalid ID' }, 400);
   const [board] = await db.select().from(boards).where(and(eq(boards.id, id), eq(boards.userId, user.id)));
   if (!board) return c.json({ error: 'Not found' }, 404);
   const boardColumns = await db.select().from(columns).where(eq(columns.boardId, id));
@@ -44,7 +49,11 @@ router.get('/:id', async (c) => {
 router.delete('/:id', async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
-  await db.delete(boards).where(and(eq(boards.id, id), eq(boards.userId, user.id)));
+  if (!isUUID(id)) return c.json({ error: 'Invalid ID' }, 400);
+  const deleted = await db.delete(boards)
+    .where(and(eq(boards.id, id), eq(boards.userId, user.id)))
+    .returning();
+  if (!deleted.length) return c.json({ error: 'Not found' }, 404);
   return c.json({ data: { success: true } });
 });
 

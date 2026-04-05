@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useSession, signOut } from '../lib/auth-client';
 import { pageVariants, staggerContainer, staggerItem } from '../hooks/usePageTransition';
 import type { Board } from '@taskflow/shared';
@@ -11,27 +11,37 @@ export default function DashboardPage() {
   const [newBoardTitle, setNewBoardTitle] = useState('');
   const [creating, setCreating] = useState(false);
   const [showInput, setShowInput] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   useEffect(() => {
     fetch('/api/boards', { credentials: 'include' })
-      .then(r => r.json())
-      .then(res => setBoards(res.data || []));
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(res => setBoards(res.data || []))
+      .catch(() => {});
   }, []);
 
   const createBoard = async () => {
     if (!newBoardTitle.trim()) return;
     setCreating(true);
-    const res = await fetch('/api/boards', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: newBoardTitle }),
-    });
-    const data = await res.json();
-    setBoards(prev => [...prev, data.data]);
-    setNewBoardTitle('');
-    setShowInput(false);
-    setCreating(false);
+    setCreateError('');
+    try {
+      const res = await fetch('/api/boards', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newBoardTitle }),
+      });
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data = await res.json();
+      if (!data.data) throw new Error('Invalid response');
+      setBoards(prev => [...prev, data.data]);
+      setNewBoardTitle('');
+      setShowInput(false);
+    } catch (e: unknown) {
+      setCreateError(e instanceof Error ? e.message : 'Failed to create board');
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -85,57 +95,79 @@ export default function DashboardPage() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
-        className="mb-8"
+        className="mb-8 space-y-2"
       >
-        {showInput ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.97 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex gap-3"
-          >
-            <input
-              autoFocus
-              type="text"
-              placeholder="Board name..."
-              value={newBoardTitle}
-              onChange={e => setNewBoardTitle(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') createBoard(); if (e.key === 'Escape') setShowInput(false); }}
-              className="flex-1 rounded-xl bg-white/[0.04] border border-cyber-400/20 px-4 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-cyber-400/40 focus:ring-1 focus:ring-cyber-400/10 transition-all"
-            />
-            <motion.button
-              onClick={createBoard}
-              disabled={creating || !newBoardTitle.trim()}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              className="rounded-xl bg-cyber-400 px-5 py-2.5 text-sm font-semibold text-dark-400 hover:bg-cyber-300 disabled:opacity-40 transition-colors"
+        <AnimatePresence mode="wait">
+          {showInput ? (
+            <motion.div
+              key="input"
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              className="flex gap-3"
             >
-              {creating ? '...' : 'Create'}
-            </motion.button>
+              <input
+                autoFocus
+                type="text"
+                placeholder="Board name..."
+                value={newBoardTitle}
+                onChange={e => setNewBoardTitle(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') createBoard(); if (e.key === 'Escape') setShowInput(false); }}
+                className="flex-1 rounded-xl bg-white/[0.04] border border-cyber-400/20 px-4 py-2.5 text-sm text-white placeholder-white/20 outline-none focus:border-cyber-400/40 focus:ring-1 focus:ring-cyber-400/10 transition-all"
+              />
+              <motion.button
+                onClick={createBoard}
+                disabled={creating || !newBoardTitle.trim()}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                className="rounded-xl bg-cyber-400 px-5 py-2.5 text-sm font-semibold text-dark-400 hover:bg-cyber-300 disabled:opacity-40 transition-colors"
+              >
+                {creating ? (
+                  <span className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full border-2 border-dark-400/30 border-t-dark-400 animate-spin" />
+                    Creating...
+                  </span>
+                ) : 'Create'}
+              </motion.button>
+              <motion.button
+                onClick={() => { setShowInput(false); setCreateError(''); }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                className="glass cyber-border rounded-xl px-4 py-2.5 text-sm text-white/40 hover:text-white/70 transition-colors"
+              >
+                Cancel
+              </motion.button>
+            </motion.div>
+          ) : (
             <motion.button
-              onClick={() => setShowInput(false)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              className="glass cyber-border rounded-xl px-4 py-2.5 text-sm text-white/40 hover:text-white/70 transition-colors"
+              key="btn"
+              onClick={() => setShowInput(true)}
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              className="group flex items-center gap-2 glass cyber-border rounded-xl px-5 py-2.5 text-sm text-white/40 hover:text-cyber-400 hover:border-cyber-400/30 transition-all"
             >
-              Cancel
+              <motion.span
+                initial={{ rotate: 0 }}
+                whileHover={{ rotate: 90 }}
+                transition={{ duration: 0.2 }}
+                className="text-lg font-light leading-none"
+              >+</motion.span>
+              New Board
             </motion.button>
-          </motion.div>
-        ) : (
-          <motion.button
-            onClick={() => setShowInput(true)}
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            className="group flex items-center gap-2 glass cyber-border rounded-xl px-5 py-2.5 text-sm text-white/40 hover:text-cyber-400 hover:border-cyber-400/30 transition-all"
-          >
-            <motion.span
-              initial={{ rotate: 0 }}
-              whileHover={{ rotate: 90 }}
-              transition={{ duration: 0.2 }}
-              className="text-lg font-light leading-none"
-            >+</motion.span>
-            New Board
-          </motion.button>
-        )}
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {createError && (
+            <motion.p
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="text-xs text-red-400/70 px-1"
+            >
+              {createError}
+            </motion.p>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {/* Boards Grid */}
