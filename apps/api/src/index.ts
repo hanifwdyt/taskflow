@@ -3,6 +3,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { auth } from './lib/auth';
 import taskRoutes from './routes/tasks';
 import boardRoutes from './routes/boards';
@@ -26,6 +27,13 @@ app.route('/api', subtaskRoutes);
 app.route('/api/workspace', workspaceRoutes);
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
-serve({ fetch: app.fetch, port: parseInt(process.env.PORT || '3001') }, () => {
-  console.log('API running on http://localhost:3001');
+// Serve static frontend in production
+if (process.env.NODE_ENV === 'production') {
+  app.use('/*', serveStatic({ root: '../web/dist' }));
+  app.get('*', serveStatic({ root: '../web/dist', path: 'index.html' }));
+}
+
+const port = parseInt(process.env.PORT || '3001');
+serve({ fetch: app.fetch, port }, () => {
+  console.log(`API running on http://localhost:${port}`);
 });
