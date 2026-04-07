@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { db } from '../db';
 import { tasks, projects, taskLabels, labels, subtasks } from '../db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth';
 import type { AppEnv } from '../types';
 
@@ -11,6 +11,7 @@ const router = new Hono<AppEnv>();
 
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUUID = (s: string) => uuidRegex.test(s);
+const isValidDate = (s: string) => !isNaN(new Date(s).getTime());
 
 const taskSchema = z.object({
   title: z.string().min(1),
@@ -21,7 +22,7 @@ const taskSchema = z.object({
   columnId: z.string().uuid().optional(),
   boardId: z.string().uuid().optional().nullable(),
   projectId: z.string().uuid().optional().nullable(),
-  dueDate: z.string().optional().nullable(),
+  dueDate: z.string().refine(v => !v || isValidDate(v), 'Invalid date').optional().nullable(),
   labelIds: z.array(z.string().uuid()).optional(),
 });
 
@@ -39,7 +40,7 @@ router.get('/', async (c) => {
 
 router.post('/', zValidator('json', taskSchema), async (c) => {
   const user = c.get('user');
-  const { labelIds, ...body } = c.req.valid('json');
+  const { labelIds, dueDate, ...body } = c.req.valid('json');
 
   if (body.projectId) {
     const [project] = await db.select().from(projects)
@@ -47,14 +48,24 @@ router.post('/', zValidator('json', taskSchema), async (c) => {
     if (!project) return c.json({ error: 'Project not found' }, 403);
   }
 
-  const { dueDate, ...rest } = body;
+  // Validate label ownership
+  if (labelIds?.length) {
+    const userLabels = await db.select({ id: labels.id }).from(labels)
+      .where(and(eq(labels.userId, user.id), inArray(labels.id, labelIds)));
+    if (userLabels.length !== labelIds.length) {
+      return c.json({ error: 'Invalid labels' }, 400);
+    }
+  }
+
   const [task] = await db.insert(tasks).values({
-    ...rest,
+    ...body,
     userId: user.id,
-    status: rest.status || 'todo',
-    priority: rest.priority || 'medium',
+    status: body.status || 'todo',
+    priority: body.priority || 'medium',
     dueDate: dueDate ? new Date(dueDate) : null,
   }).returning();
+
+  if (!task) return c.json({ error: 'Failed to create task' }, 500);
 
   if (labelIds?.length) {
     await db.insert(taskLabels).values(
@@ -82,6 +93,14 @@ router.patch('/:id', zValidator('json', taskSchema.partial()), async (c) => {
   if (!task) return c.json({ error: 'Not found' }, 404);
 
   if (labelIds !== undefined) {
+    // Validate label ownership
+    if (labelIds.length) {
+      const userLabels = await db.select({ id: labels.id }).from(labels)
+        .where(and(eq(labels.userId, user.id), inArray(labels.id, labelIds)));
+      if (userLabels.length !== labelIds.length) {
+        return c.json({ error: 'Invalid labels' }, 400);
+      }
+    }
     await db.delete(taskLabels).where(eq(taskLabels.taskId, id));
     if (labelIds.length) {
       await db.insert(taskLabels).values(
@@ -90,7 +109,6 @@ router.patch('/:id', zValidator('json', taskSchema.partial()), async (c) => {
     }
   }
 
-  // Return enriched task
   const taskLabelRows = await db.select().from(taskLabels).where(eq(taskLabels.taskId, id));
   const taskLabelList = taskLabelRows.length > 0
     ? await db.select().from(labels).where(eq(labels.userId, user.id))

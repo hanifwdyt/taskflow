@@ -10,6 +10,8 @@ import type { AppEnv } from '../types';
 const router = new Hono<AppEnv>();
 router.use('*', requireAuth);
 
+const isUUID = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+
 const projectSchema = z.object({
   title: z.string().min(1),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
@@ -51,6 +53,7 @@ router.post('/', zValidator('json', projectSchema), async (c) => {
 router.patch('/:id', zValidator('json', projectSchema.partial()), async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
+  if (!isUUID(id)) return c.json({ error: 'Invalid ID' }, 400);
   const body = c.req.valid('json');
   const [project] = await db.update(projects)
     .set({ ...body, updatedAt: new Date() })
@@ -63,6 +66,7 @@ router.patch('/:id', zValidator('json', projectSchema.partial()), async (c) => {
 router.delete('/:id', async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
+  if (!isUUID(id)) return c.json({ error: 'Invalid ID' }, 400);
   // Unassign tasks from this project (don't delete them)
   await db.update(tasks)
     .set({ projectId: null, updatedAt: new Date() })

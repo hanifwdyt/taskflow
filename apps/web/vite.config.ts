@@ -11,7 +11,7 @@ export default defineConfig({
         name: 'TaskFlow',
         short_name: 'TaskFlow',
         description: 'Your productivity ecosystem',
-        theme_color: '#00d4ff',
+        theme_color: '#818cf8',
         background_color: '#050810',
         display: 'standalone',
         start_url: '/',

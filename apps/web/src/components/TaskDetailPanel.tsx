@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import type { Task, Project, Label, Subtask } from '@taskflow/shared';
+import type { Task, Project, Label, Subtask, TaskPriority } from '@taskflow/shared';
 import { api } from '../lib/api';
 import type { ApiResponse } from '@taskflow/shared';
 
@@ -13,7 +13,7 @@ interface Props {
   onClose: () => void;
 }
 
-const PRIORITIES: { value: Task['priority']; label: string; color: string }[] = [
+const PRIORITIES: { value: TaskPriority; label: string; color: string }[] = [
   { value: 'low', label: 'Low', color: '#71717a' },
   { value: 'medium', label: 'Medium', color: '#f59e0b' },
   { value: 'high', label: 'High', color: '#f97316' },
@@ -22,54 +22,105 @@ const PRIORITIES: { value: Task['priority']; label: string; color: string }[] = 
 
 const EFFORTS = [1, 2, 3, 5, 8, 13];
 
+// Parse due date without timezone conversion
+const parseDueDate = (d?: string) => {
+  if (!d) return '';
+  // Handle ISO string: take the date part directly
+  if (d.includes('T')) return d.split('T')[0];
+  return d.substring(0, 10);
+};
+
 export default function TaskDetailPanel({ task, projects, labels, onUpdate, onDelete, onClose }: Props) {
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description || '');
+  const [priority, setPriority] = useState<TaskPriority>(task.priority);
+  const [effort, setEffort] = useState<number | undefined>(task.effort);
+  const [projectId, setProjectId] = useState<string | undefined>(task.projectId);
+  const [dueDate, setDueDate] = useState(parseDueDate(task.dueDate));
+  const [labelIds, setLabelIds] = useState<string[]>((task.labels || []).map(l => l.id));
   const [subtasks, setSubtasks] = useState<Subtask[]>(task.subtasks || []);
   const [newSubtask, setNewSubtask] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [subtaskError, setSubtaskError] = useState('');
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
-  const hasChanges = title.trim() !== task.title || description !== (task.description || '');
+  const hasChanges =
+    title.trim() !== task.title ||
+    description !== (task.description || '') ||
+    priority !== task.priority ||
+    effort !== task.effort ||
+    projectId !== task.projectId ||
+    dueDate !== parseDueDate(task.dueDate) ||
+    JSON.stringify([...labelIds].sort()) !== JSON.stringify((task.labels || []).map(l => l.id).sort());
 
   useEffect(() => {
     setTitle(task.title);
     setDescription(task.description || '');
+    setPriority(task.priority);
+    setEffort(task.effort);
+    setProjectId(task.projectId);
+    setDueDate(parseDueDate(task.dueDate));
+    setLabelIds((task.labels || []).map(l => l.id));
     setSubtasks(task.subtasks || []);
     setConfirmDelete(false);
     setSaved(false);
+    setSaving(false);
+    setSubtaskError('');
   }, [task.id]);
 
-  const handleSave = () => {
-    const updates: Partial<Task> = {};
-    if (title.trim() && title.trim() !== task.title) updates.title = title.trim();
+  const handleSave = async () => {
+    if (!hasChanges || saving) return;
+    setSaving(true);
+    const updates: Partial<Task> & { labelIds?: string[] } = {};
+    if (title.trim() !== task.title) updates.title = title.trim();
     if (description !== (task.description || '')) updates.description = description;
-    if (Object.keys(updates).length > 0) {
-      onUpdate(task.id, updates);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
+    if (priority !== task.priority) updates.priority = priority;
+    if (effort !== task.effort) updates.effort = effort;
+    if (projectId !== task.projectId) updates.projectId = projectId;
+    if (dueDate !== parseDueDate(task.dueDate)) updates.dueDate = dueDate || undefined;
+    if (JSON.stringify([...labelIds].sort()) !== JSON.stringify((task.labels || []).map(l => l.id).sort())) {
+      updates.labelIds = labelIds;
     }
+    onUpdate(task.id, updates);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
   };
 
   const addSubtask = async () => {
     if (!newSubtask.trim()) return;
+    setSubtaskError('');
     try {
       const res = await api.post<ApiResponse<Subtask>>(`/api/tasks/${task.id}/subtasks`, { title: newSubtask.trim() });
       if (res.data) { setSubtasks(prev => [...prev, res.data!]); setNewSubtask(''); }
-    } catch {}
+    } catch {
+      setSubtaskError('Failed to add subtask');
+      setTimeout(() => setSubtaskError(''), 3000);
+    }
   };
 
   const toggleSubtask = async (s: Subtask) => {
     const updated = { ...s, completed: !s.completed };
     setSubtasks(prev => prev.map(x => x.id === s.id ? updated : x));
     try { await api.patch(`/api/subtasks/${s.id}`, { completed: updated.completed }); }
-    catch { setSubtasks(prev => prev.map(x => x.id === s.id ? s : x)); }
+    catch {
+      setSubtasks(prev => prev.map(x => x.id === s.id ? s : x));
+      setSubtaskError('Failed to update subtask');
+      setTimeout(() => setSubtaskError(''), 3000);
+    }
   };
 
   const deleteSubtask = async (id: string) => {
-    setSubtasks(prev => prev.filter(s => s.id !== id));
-    try { await api.delete(`/api/subtasks/${id}`); } catch {}
+    const prev = subtasks;
+    setSubtasks(s => s.filter(x => x.id !== id));
+    try { await api.delete(`/api/subtasks/${id}`); }
+    catch {
+      setSubtasks(prev);
+      setSubtaskError('Failed to delete subtask');
+      setTimeout(() => setSubtaskError(''), 3000);
+    }
   };
 
   const completedCount = subtasks.filter(s => s.completed).length;
@@ -117,17 +168,17 @@ export default function TaskDetailPanel({ task, projects, labels, onUpdate, onDe
             <span className="w-[72px] flex-shrink-0 text-[#555560] pt-1">Project</span>
             <div className="flex flex-wrap gap-1">
               <button
-                onClick={() => onUpdate(task.id, { projectId: undefined } as any)}
-                className={`rounded-md px-2 py-[3px] transition-colors ${!task.projectId ? 'bg-[#2a2a32] text-[#c0c0c8]' : 'text-[#555560] hover:bg-[#1e1e23]'}`}
+                onClick={() => { setProjectId(undefined); setSaved(false); }}
+                className={`rounded-md px-2 py-[3px] transition-colors ${!projectId ? 'bg-[#2a2a32] text-[#c0c0c8]' : 'text-[#555560] hover:bg-[#1e1e23]'}`}
               >
                 —
               </button>
               {projects.map(p => (
                 <button
                   key={p.id}
-                  onClick={() => onUpdate(task.id, { projectId: p.id })}
+                  onClick={() => { setProjectId(p.id); setSaved(false); }}
                   className={`flex items-center gap-1.5 rounded-md px-2 py-[3px] transition-colors ${
-                    task.projectId === p.id ? 'bg-[#2a2a32] text-[#c0c0c8]' : 'text-[#555560] hover:bg-[#1e1e23]'
+                    projectId === p.id ? 'bg-[#2a2a32] text-[#c0c0c8]' : 'text-[#555560] hover:bg-[#1e1e23]'
                   }`}
                 >
                   <span className="h-[6px] w-[6px] rounded-full" style={{ backgroundColor: p.color }} />
@@ -144,9 +195,9 @@ export default function TaskDetailPanel({ task, projects, labels, onUpdate, onDe
               {PRIORITIES.map(p => (
                 <button
                   key={p.value}
-                  onClick={() => onUpdate(task.id, { priority: p.value })}
+                  onClick={() => { setPriority(p.value); setSaved(false); }}
                   className={`flex items-center gap-1 rounded-md px-2 py-[3px] transition-colors ${
-                    task.priority === p.value ? 'bg-[#2a2a32] text-[#c0c0c8]' : 'text-[#555560] hover:bg-[#1e1e23]'
+                    priority === p.value ? 'bg-[#2a2a32] text-[#c0c0c8]' : 'text-[#555560] hover:bg-[#1e1e23]'
                   }`}
                 >
                   <span className="h-[5px] w-[5px] rounded-full" style={{ backgroundColor: p.color }} />
@@ -163,9 +214,9 @@ export default function TaskDetailPanel({ task, projects, labels, onUpdate, onDe
               {EFFORTS.map(n => (
                 <button
                   key={n}
-                  onClick={() => onUpdate(task.id, { effort: task.effort === n ? undefined : n })}
+                  onClick={() => { setEffort(effort === n ? undefined : n); setSaved(false); }}
                   className={`h-7 w-7 rounded-md font-mono text-[11px] transition-colors ${
-                    task.effort === n ? 'bg-accent/15 text-accent' : 'text-[#555560] hover:bg-[#1e1e23]'
+                    effort === n ? 'bg-accent/15 text-accent' : 'text-[#555560] hover:bg-[#1e1e23]'
                   }`}
                 >
                   {n}
@@ -179,8 +230,8 @@ export default function TaskDetailPanel({ task, projects, labels, onUpdate, onDe
             <span className="w-[72px] flex-shrink-0 text-[#555560]">Due</span>
             <input
               type="date"
-              value={task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : ''}
-              onChange={e => onUpdate(task.id, { dueDate: e.target.value || undefined })}
+              value={dueDate}
+              onChange={e => { setDueDate(e.target.value); setSaved(false); }}
               className="rounded-md bg-[#1e1e23] border border-[#2a2a30] px-2 py-[3px] text-[12px] text-[#808090] outline-none focus:border-accent/25 transition-colors"
             />
           </div>
@@ -190,13 +241,13 @@ export default function TaskDetailPanel({ task, projects, labels, onUpdate, onDe
             <span className="w-[72px] flex-shrink-0 text-[#555560] pt-[3px]">Labels</span>
             <div className="flex flex-wrap gap-1">
               {labels.map(label => {
-                const active = task.labels?.some(l => l.id === label.id);
+                const active = labelIds.includes(label.id);
                 return (
                   <button
                     key={label.id}
                     onClick={() => {
-                      const ids = (task.labels || []).map(l => l.id);
-                      onUpdate(task.id, { labelIds: active ? ids.filter(id => id !== label.id) : [...ids, label.id] });
+                      setLabelIds(active ? labelIds.filter(id => id !== label.id) : [...labelIds, label.id]);
+                      setSaved(false);
                     }}
                     className={`rounded-md px-2 py-[2px] text-[11px] transition-all ${
                       active ? 'opacity-100' : 'opacity-35 hover:opacity-60'
@@ -230,7 +281,7 @@ export default function TaskDetailPanel({ task, projects, labels, onUpdate, onDe
         {/* Save button */}
         <button
           onClick={handleSave}
-          disabled={!hasChanges || saved}
+          disabled={!hasChanges || saving || saved}
           className={`w-full rounded-lg py-2 text-[13px] font-medium transition-all ${
             saved
               ? 'bg-emerald-500/15 text-emerald-400'
@@ -239,7 +290,7 @@ export default function TaskDetailPanel({ task, projects, labels, onUpdate, onDe
                 : 'bg-[#1e1e23] text-[#3a3a44] cursor-default'
           }`}
         >
-          {saved ? 'Saved' : 'Save'}
+          {saving ? 'Saving...' : saved ? 'Saved' : 'Save'}
         </button>
 
         {/* Subtasks */}
@@ -290,6 +341,9 @@ export default function TaskDetailPanel({ task, projects, labels, onUpdate, onDe
               className="flex-1 bg-transparent text-[13px] text-[#808090] placeholder-[#333340] outline-none"
             />
           </div>
+          {subtaskError && (
+            <p className="text-[11px] text-red-400/70 px-1">{subtaskError}</p>
+          )}
         </div>
 
         {/* Meta */}

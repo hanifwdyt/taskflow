@@ -10,6 +10,8 @@ import type { AppEnv } from '../types';
 const router = new Hono<AppEnv>();
 router.use('*', requireAuth);
 
+const isUUID = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+
 const labelSchema = z.object({
   name: z.string().min(1),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
@@ -34,6 +36,7 @@ router.post('/', zValidator('json', labelSchema), async (c) => {
 router.patch('/:id', zValidator('json', labelSchema.partial()), async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
+  if (!isUUID(id)) return c.json({ error: 'Invalid ID' }, 400);
   const body = c.req.valid('json');
   const [label] = await db.update(labels)
     .set(body)
@@ -46,6 +49,7 @@ router.patch('/:id', zValidator('json', labelSchema.partial()), async (c) => {
 router.delete('/:id', async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
+  if (!isUUID(id)) return c.json({ error: 'Invalid ID' }, 400);
   const deleted = await db.delete(labels)
     .where(and(eq(labels.id, id), eq(labels.userId, user.id)))
     .returning();

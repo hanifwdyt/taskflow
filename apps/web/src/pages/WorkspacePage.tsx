@@ -69,6 +69,7 @@ export default function WorkspacePage() {
   }, [columns, addTask]);
 
   const allTasks = columns.flatMap(c => c.tasks);
+  const overdueCount = allTasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done').length;
   const activeProject = projects.find(p => p.id === activeProjectId);
 
   if (loading) return (
@@ -161,8 +162,8 @@ export default function WorkspacePage() {
           {/* Status bar */}
           <div className="flex-shrink-0 border-t border-[#1a1a1f] px-5 py-1.5 flex items-center gap-4 text-[10px] text-[#3a3a44]">
             <span>{allTasks.length} tasks</span>
-            {allTasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done').length > 0 && (
-              <span className="text-red-400/40">{allTasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done').length} overdue</span>
+            {overdueCount > 0 && (
+              <span className="text-red-400/40">{overdueCount} overdue</span>
             )}
           </div>
         </div>

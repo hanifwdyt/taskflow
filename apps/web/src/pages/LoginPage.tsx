@@ -34,7 +34,11 @@ export default function LoginPage() {
   };
 
   const handleGoogle = async () => {
-    await signIn.social({ provider: 'google', callbackURL: '/' });
+    try {
+      await signIn.social({ provider: 'google', callbackURL: '/' });
+    } catch {
+      setError('Google sign-in is not available');
+    }
   };
 
   return (
