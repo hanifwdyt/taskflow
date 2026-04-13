@@ -11,20 +11,11 @@ const router = new Hono();
 
 // Middleware: validate Bearer token & resolve user
 router.use('*', async (c, next) => {
-  // Try multiple ways to read the Authorization header for compatibility
-  const authHeader =
-    c.req.header('Authorization') ||
-    c.req.header('authorization') ||
-    (c.req.raw?.headers?.get?.('authorization')) ||
-    c.req.query('token');  // fallback: ?token=tf_xxx
-
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.slice(7)
-    : authHeader || null;
-
-  if (!token) {
+  const authHeader = c.req.header('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
+  const token = authHeader.slice(7);
 
   const [row] = await db.select().from(apiTokens).where(eq(apiTokens.token, token)).limit(1);
   if (!row) return c.json({ error: 'Invalid token' }, 401);
