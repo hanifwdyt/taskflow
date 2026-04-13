@@ -28,6 +28,16 @@ app.route('/api', subtaskRoutes);
 app.route('/api/workspace', workspaceRoutes);
 app.route('/api/agent', agentRoutes);
 app.get('/health', (c) => c.json({ status: 'ok' }));
+// Debug endpoint — REMOVE after debugging
+app.get('/api/debug-headers', (c) => {
+  const h = c.req.header('Authorization');
+  const q = c.req.query('token');
+  const raw = c.req.raw.headers.get('authorization');
+  console.log('[DEBUG] Authorization header:', h);
+  console.log('[DEBUG] query token:', q);
+  console.log('[DEBUG] raw authorization:', raw);
+  return c.json({ header: h, query: q, raw });
+});
 
 // Serve static frontend in production
 if (process.env.NODE_ENV === 'production') {
