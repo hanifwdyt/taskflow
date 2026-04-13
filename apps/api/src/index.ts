@@ -11,6 +11,7 @@ import projectRoutes from './routes/projects';
 import labelRoutes from './routes/labels';
 import subtaskRoutes from './routes/subtasks';
 import workspaceRoutes from './routes/workspace';
+import agentRoutes from './routes/agent';
 
 const app = new Hono();
 app.use('*', logger());
@@ -25,6 +26,7 @@ app.route('/api/projects', projectRoutes);
 app.route('/api/labels', labelRoutes);
 app.route('/api', subtaskRoutes);
 app.route('/api/workspace', workspaceRoutes);
+app.route('/api/agent', agentRoutes);
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
 // Serve static frontend in production
