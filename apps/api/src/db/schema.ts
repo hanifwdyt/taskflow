@@ -120,6 +120,17 @@ export const taskLabels = pgTable('task_labels', {
   pk: primaryKey({ columns: [t.taskId, t.labelId] }),
 }));
 
+// ── API Tokens (untuk integrasi Punakawan AI) ────────────────────
+
+export const apiTokens = pgTable('api_tokens', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  token: text('token').notNull().unique(),
+  name: text('name').notNull().default('Punakawan AI'),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  lastUsedAt: timestamp('last_used_at'),
+});
+
 // ── Subtasks ─────────────────────────────────────────────────────
 
 export const subtasks = pgTable('subtasks', {

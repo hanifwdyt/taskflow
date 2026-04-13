@@ -1,37 +1,35 @@
 /**
  * Agent API — internal endpoint untuk Punakawan AI
- * Auth: X-Agent-Key header harus match AGENT_SECRET env var
+ * Auth: Authorization: Bearer <api_token> (token dari tabel api_tokens)
  */
 import { Hono } from 'hono';
 import { db } from '../db';
-import { tasks, projects } from '../db/schema';
-import { eq, desc, and, ne } from 'drizzle-orm';
-import { users } from '../db/schema';
+import { tasks, projects, apiTokens } from '../db/schema';
+import { eq, desc, and } from 'drizzle-orm';
 
 const router = new Hono();
 
-// Middleware: validate agent key
+// Middleware: validate Bearer token & resolve user
 router.use('*', async (c, next) => {
-  const secret = process.env.AGENT_SECRET;
-  if (!secret) return c.json({ error: 'Agent API not configured' }, 503);
+  const authHeader = c.req.header('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  const token = authHeader.slice(7);
 
-  const key = c.req.header('X-Agent-Key');
-  if (!key || key !== secret) return c.json({ error: 'Unauthorized' }, 401);
+  const [row] = await db.select().from(apiTokens).where(eq(apiTokens.token, token)).limit(1);
+  if (!row) return c.json({ error: 'Invalid token' }, 401);
 
+  // Update last_used_at (fire and forget)
+  db.update(apiTokens).set({ lastUsedAt: new Date() }).where(eq(apiTokens.id, row.id)).catch(() => {});
+
+  c.set('userId' as any, row.userId);
   await next();
 });
 
-// Helper: get first user (personal app, single user)
-async function getFirstUser() {
-  const [user] = await db.select().from(users).limit(1);
-  return user;
-}
-
-// GET /api/agent/tasks — list tasks, optional ?status=todo|in_progress|done
+// GET /api/agent/tasks — list tasks
 router.get('/tasks', async (c) => {
-  const user = await getFirstUser();
-  if (!user) return c.json({ error: 'No user found' }, 404);
-
+  const userId = c.get('userId' as any) as string;
   const statusFilter = c.req.query('status');
   const projectId = c.req.query('projectId');
 
@@ -47,7 +45,7 @@ router.get('/tasks', async (c) => {
       createdAt: tasks.createdAt,
     })
     .from(tasks)
-    .where(eq(tasks.userId, user.id))
+    .where(eq(tasks.userId, userId))
     .orderBy(desc(tasks.createdAt));
 
   if (statusFilter) allTasks = allTasks.filter(t => t.status === statusFilter);
@@ -56,24 +54,19 @@ router.get('/tasks', async (c) => {
   return c.json({ data: allTasks, total: allTasks.length });
 });
 
-// GET /api/agent/projects — list all projects
+// GET /api/agent/projects — list projects
 router.get('/projects', async (c) => {
-  const user = await getFirstUser();
-  if (!user) return c.json({ error: 'No user found' }, 404);
-
+  const userId = c.get('userId' as any) as string;
   const allProjects = await db
     .select({ id: projects.id, title: projects.title, color: projects.color })
     .from(projects)
-    .where(eq(projects.userId, user.id));
-
+    .where(eq(projects.userId, userId));
   return c.json({ data: allProjects });
 });
 
-// POST /api/agent/tasks — create a task
+// POST /api/agent/tasks — create task
 router.post('/tasks', async (c) => {
-  const user = await getFirstUser();
-  if (!user) return c.json({ error: 'No user found' }, 404);
-
+  const userId = c.get('userId' as any) as string;
   const body = await c.req.json() as {
     title: string;
     description?: string;
@@ -91,18 +84,16 @@ router.post('/tasks', async (c) => {
     status: (body.status as any) || 'todo',
     priority: (body.priority as any) || 'medium',
     projectId: body.projectId || null,
-    userId: user.id,
+    userId,
     dueDate: body.dueDate ? new Date(body.dueDate) : null,
   }).returning();
 
   return c.json({ data: task }, 201);
 });
 
-// PATCH /api/agent/tasks/:id — update task status
+// PATCH /api/agent/tasks/:id — update task
 router.patch('/tasks/:id', async (c) => {
-  const user = await getFirstUser();
-  if (!user) return c.json({ error: 'No user found' }, 404);
-
+  const userId = c.get('userId' as any) as string;
   const id = c.req.param('id');
   const body = await c.req.json() as { status?: string; priority?: string; title?: string };
 
@@ -113,7 +104,7 @@ router.patch('/tasks/:id', async (c) => {
       ...(body.priority && { priority: body.priority as any }),
       ...(body.title && { title: body.title }),
     })
-    .where(and(eq(tasks.id, id), eq(tasks.userId, user.id)))
+    .where(and(eq(tasks.id, id), eq(tasks.userId, userId)))
     .returning();
 
   if (!task) return c.json({ error: 'Task not found' }, 404);

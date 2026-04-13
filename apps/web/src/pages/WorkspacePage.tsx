@@ -10,6 +10,7 @@ import KanbanColumn from '../components/KanbanColumn';
 import TaskCard from '../components/TaskCard';
 import TaskDetailPanel from '../components/TaskDetailPanel';
 import QuickAddBar, { QuickAddBarRef } from '../components/QuickAddBar';
+import SettingsModal from '../components/SettingsModal';
 import type { Task } from '@taskflow/shared';
 import { pageVariants } from '../hooks/usePageTransition';
 
@@ -28,6 +29,7 @@ export default function WorkspacePage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const quickAddRef = useRef<QuickAddBarRef>(null);
 
   const currentSelectedTask = useMemo(() => {
@@ -104,9 +106,13 @@ export default function WorkspacePage() {
           )}
         </div>
         <div className="flex items-center gap-2.5">
-          <div className="h-6 w-6 rounded-full bg-accent/12 flex items-center justify-center text-[10px] font-medium text-accent">
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="h-6 w-6 rounded-full bg-accent/12 hover:bg-accent/20 flex items-center justify-center text-[10px] font-medium text-accent transition-colors"
+            title="Settings"
+          >
             {session?.user.name?.[0]?.toUpperCase()}
-          </div>
+          </button>
           <button onClick={() => signOut()} className="text-[11px] text-[#4a4a58] hover:text-[#808090] transition-colors">
             Sign out
           </button>
@@ -181,6 +187,8 @@ export default function WorkspacePage() {
           )}
         </AnimatePresence>
       </div>
+
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </motion.div>
   );
 }

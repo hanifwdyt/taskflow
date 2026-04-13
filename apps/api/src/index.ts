@@ -145,6 +145,14 @@ async function start() {
       position INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMP DEFAULT NOW() NOT NULL
     )`);
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS api_tokens (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      token TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL DEFAULT 'Punakawan AI',
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      last_used_at TIMESTAMP
+    )`);
     console.log('Database schema ready');
   } catch (e) {
     console.error('Schema init error:', e);

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
+import { randomBytes } from 'crypto';
 import { db } from '../db';
-import { columns, tasks, labels, taskLabels, subtasks, projects } from '../db/schema';
+import { columns, tasks, labels, taskLabels, subtasks, projects, apiTokens } from '../db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { requireAuth } from '../middleware/auth';
 import type { AppEnv } from '../types';
@@ -69,6 +70,42 @@ router.get('/', async (c) => {
       labels: userLabels,
     },
   });
+});
+
+// ── API Token management ──────────────────────────────────────────
+
+// GET /api/workspace/tokens — list user's tokens
+router.get('/tokens', async (c) => {
+  const user = c.get('user');
+  const tokens = await db.select({
+    id: apiTokens.id,
+    name: apiTokens.name,
+    token: apiTokens.token,
+    createdAt: apiTokens.createdAt,
+    lastUsedAt: apiTokens.lastUsedAt,
+  }).from(apiTokens).where(eq(apiTokens.userId, user.id));
+  return c.json({ data: tokens });
+});
+
+// POST /api/workspace/tokens — create new token
+router.post('/tokens', async (c) => {
+  const user = c.get('user');
+  const body = await c.req.json().catch(() => ({})) as { name?: string };
+  const token = `tf_${randomBytes(32).toString('hex')}`;
+  const [created] = await db.insert(apiTokens).values({
+    token,
+    name: body.name || 'Punakawan AI',
+    userId: user.id,
+  }).returning();
+  return c.json({ data: created }, 201);
+});
+
+// DELETE /api/workspace/tokens/:id — revoke token
+router.delete('/tokens/:id', async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id');
+  await db.delete(apiTokens).where(eq(apiTokens.id, id));
+  return c.json({ success: true });
 });
 
 export default router;
